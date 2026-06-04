@@ -1,0 +1,19 @@
+---
+
+- name: Manage VM
+  hosts: localhost
+  vars:
+    validate_certs: false
+    cmdb_url: http://localhost:8080
+    ipam_url: http://localhost:8081
+  tasks:
+    - name: Include vars of vars.yaml into the 'vm_vars' variable.
+      ansible.builtin.include_vars:
+        file: vars.yaml
+        name: vm_vars
+
+    - name: manage VMs
+      ansible.builtin.include_tasks: tasks/tasks.yaml
+      loop: "{{ vm_vars.virtualMachines }}"
+
+    
