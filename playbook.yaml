@@ -12,8 +12,32 @@
         file: vars.yaml
         name: vm_vars
 
-    - name: manage VMs
-      ansible.builtin.include_tasks: tasks/tasks.yaml
-      loop: "{{ vm_vars.virtualMachines }}"
+    - name: manage git repository
+      ansible.builtin.include_tasks: 
+        file: tasks/git-tasks.yaml   
+      vars:
+        repo_url: "{{ repo_url }}"
+        repo_dir: "{{ repo_dir }}"
+        repo_branch: "{{ repo_branch }}"
+        task_name: git-pull
 
-    
+    - name: manage VMs
+      ansible.builtin.include_tasks: tasks/configure-vm.yaml
+      loop: "{{ vm_vars.virtualMachines }}"
+      loop_control:
+        label: "{{ vm.vm_name }}"
+        loop_var: vm
+
+    - name: Check if any VM manifests have changed
+      ansible.builtin.shell: "git status --porcelain"
+      args:
+        chdir: "{{ repo_dir }}"
+      register: git_status
+      changed_when: false
+
+    - name: Commit commit and push changes
+      ansible.builtin.include_tasks: 
+        file: tasks/git-tasks.yaml
+      vars:
+        task_name: git-commit
+      when: git_status.stdout | length > 0

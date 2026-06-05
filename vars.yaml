@@ -2,7 +2,7 @@ namespace: vm-test
 virtualMachines:
   - vm_name: my-test-vm
     running: true
-    state: present
+    state: absent
     storage_size: 30Gi
     memory_size: 2Gi
     cpu_cores: 2
