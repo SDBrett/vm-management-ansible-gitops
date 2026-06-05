@@ -12,3 +12,5 @@ To stop the services run `make stop-services`
 Default service ports are 8080 and 8081
 
 The playbook can be run using either `ansible-playbook playbook.yaml` or `make run-playbook`
+
+The file `config.env` is ignored by git, you can use this file to set shell variables to simplify using the `Makefile`
