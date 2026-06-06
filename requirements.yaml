@@ -1,6 +1,0 @@
----
-collections:
-  - name: infra.openshift_virtualization_migration
-  - name: infra.openshift_virtualization_ops
-  - name: redhat.openshift
-  - name: redhat.openshift_virtualization

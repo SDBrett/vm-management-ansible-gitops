@@ -1,23 +1,18 @@
 PYTHON ?= python3
-ANSIBLE ?= ansible-playbook
-HACK_DIR := hack
-RUN_DIR := .run
-PLAYBOOK ?= playbook.yaml
-INVENTORY ?= inventory.yaml
-ANSIBLE_ARGS ?=
+ROOT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
+HACK_DIR := $(ROOT_DIR)/hack
+RUN_DIR := $(ROOT_DIR)/.run
 
 CMDB_HOST ?= localhost
 CMDB_PORT ?= 8080
 IPAM_HOST ?= localhost
 IPAM_PORT ?= 8081
-CMDB_URL ?= http://localhost:$(CMDB_PORT)
-IPAM_URL ?= http://localhost:$(IPAM_PORT)
 
 GITEA_CONTAINER ?= gitea
 GITEA_HTTP_PORT ?= 3000
 GITEA_SSH_PORT ?= 22220
 GITEA_VOLUME ?= gitea-data
-GITEA_IMAGE ?= gitea/gitea:latest
+GITEA_IMAGE ?= gitea/gitea:latest-rootless
 GITEA_URL ?= http://localhost:$(GITEA_HTTP_PORT)
 CONTAINER_TOOL ?= podman
 
@@ -26,7 +21,7 @@ IPAM_PIDFILE := $(RUN_DIR)/ipam.pid
 CMDB_LOG := $(RUN_DIR)/cmdb.log
 IPAM_LOG := $(RUN_DIR)/ipam.log
 
-.PHONY: help start-cmdb stop-cmdb start-ipam stop-ipam start-gitea stop-gitea start-services stop-services status run-playbook
+.PHONY: help start-cmdb stop-cmdb start-ipam stop-ipam start-gitea setup-gitea stop-gitea start-services stop-services status
 
 .DEFAULT_GOAL := help
 
@@ -39,23 +34,21 @@ help:
 	@echo "  make start-ipam       Start IPAM in the background ($(IPAM_HOST):$(IPAM_PORT))"
 	@echo "  make stop-ipam        Stop IPAM using $(IPAM_PIDFILE)"
 	@echo "  make start-gitea      Start Gitea in a container ($(GITEA_URL))"
+	@echo "  make setup-gitea      Start Gitea and create the admin user"
 	@echo "  make stop-gitea       Stop the Gitea container"
 	@echo "  make start-services   Start both CMDB and IPAM"
 	@echo "  make stop-services    Stop both CMDB and IPAM"
 	@echo "  make status           Show whether each service is running"
-	@echo "  make run-playbook     Run $(PLAYBOOK) with cmdb_url and ipam_url"
 	@echo ""
 	@echo "Variables:"
 	@echo "  CMDB_HOST, CMDB_PORT   CMDB bind address (default port: 8080)"
 	@echo "  IPAM_HOST, IPAM_PORT   IPAM bind address (default port: 8081)"
-	@echo "  CMDB_URL, IPAM_URL     URLs passed to the playbook as extra vars"
 	@echo "  CONTAINER_TOOL          Container tool for Gitea targets (default: podman)"
 	@echo "  GITEA_CONTAINER        Container name (default: gitea)"
 	@echo "  GITEA_HTTP_PORT        Gitea web UI port (default: 3000)"
 	@echo "  GITEA_SSH_PORT         Gitea SSH port mapped to container port 22 (default: 22220)"
 	@echo "  GITEA_VOLUME           Container volume for Gitea data (default: gitea-data)"
 	@echo "  GITEA_IMAGE            Gitea container image (default: gitea/gitea:latest)"
-	@echo "  ANSIBLE_ARGS           Extra arguments passed to ansible-playbook"
 
 $(RUN_DIR):
 	@mkdir -p $(RUN_DIR)
@@ -107,12 +100,12 @@ stop-ipam:
 	@rm -f $(IPAM_PIDFILE)
 
 start-gitea:
-	@if $(CONTAINER_TOOL) inspect $(GITEA_CONTAINER) >/dev/null 2>&1; then \
-		if [ "$$($(CONTAINER_TOOL) inspect -f '{{.State.Running}}' $(GITEA_CONTAINER))" = "true" ]; then \
+	@if $(CONTAINER_TOOL) container exists $(GITEA_CONTAINER) 2>/dev/null; then \
+		if [ "$$($(CONTAINER_TOOL) inspect --type container -f '{{.State.Running}}' $(GITEA_CONTAINER))" = "true" ]; then \
 			echo "Gitea already running (container $(GITEA_CONTAINER))"; \
 			exit 1; \
 		fi; \
-		$(CONTAINER_TOOL) start $(GITEA_CONTAINER); \
+		$(CONTAINER_TOOL) start $(GITEA_CONTAINER) && \
 		echo "Started existing Gitea container $(GITEA_CONTAINER) ($(GITEA_URL))"; \
 	else \
 		$(CONTAINER_TOOL) run -d \
@@ -120,16 +113,32 @@ start-gitea:
 			-p $(GITEA_HTTP_PORT):3000 \
 			-p $(GITEA_SSH_PORT):22 \
 			-v $(GITEA_VOLUME):/data \
-			$(GITEA_IMAGE); \
+			-e GITEA__security__INSTALL_LOCK=true \
+			$(GITEA_IMAGE) && \
 		echo "Started Gitea (container $(GITEA_CONTAINER), $(GITEA_URL), SSH port $(GITEA_SSH_PORT))"; \
 	fi
 
+setup-gitea: start-gitea
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+		if $(CONTAINER_TOOL) exec -u git $(GITEA_CONTAINER) gitea admin user create \
+			--username admin \
+			--password ansible123 \
+			--email admin@example.com \
+			--admin 2>/dev/null; then \
+			echo "Created Gitea admin user (admin)"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "Gitea admin user creation failed after waiting for the container"; \
+	exit 1
+
 stop-gitea:
-	@if ! $(CONTAINER_TOOL) inspect $(GITEA_CONTAINER) >/dev/null 2>&1; then \
+	@if ! $(CONTAINER_TOOL) container exists $(GITEA_CONTAINER) 2>/dev/null; then \
 		echo "Gitea is not running (no container $(GITEA_CONTAINER))"; \
 		exit 0; \
 	fi
-	@if [ "$$($(CONTAINER_TOOL) inspect -f '{{.State.Running}}' $(GITEA_CONTAINER))" = "true" ]; then \
+	@if [ "$$($(CONTAINER_TOOL) inspect --type container -f '{{.State.Running}}' $(GITEA_CONTAINER))" = "true" ]; then \
 		$(CONTAINER_TOOL) stop $(GITEA_CONTAINER) && echo "Stopped Gitea (container $(GITEA_CONTAINER))"; \
 	else \
 		echo "Gitea is not running (container $(GITEA_CONTAINER) exists but is stopped)"; \
@@ -140,8 +149,8 @@ start-services: start-cmdb start-ipam
 stop-services: stop-cmdb stop-ipam
 
 status:
-	@if $(CONTAINER_TOOL) inspect $(GITEA_CONTAINER) >/dev/null 2>&1; then \
-		if [ "$$($(CONTAINER_TOOL) inspect -f '{{.State.Running}}' $(GITEA_CONTAINER))" = "true" ]; then \
+	@if $(CONTAINER_TOOL) container exists $(GITEA_CONTAINER) 2>/dev/null; then \
+		if [ "$$($(CONTAINER_TOOL) inspect --type container -f '{{.State.Running}}' $(GITEA_CONTAINER))" = "true" ]; then \
 			echo "gitea: running (container $(GITEA_CONTAINER), $(GITEA_URL))"; \
 		else \
 			echo "gitea: not running (container $(GITEA_CONTAINER) exists but is stopped)"; \
@@ -159,9 +168,3 @@ status:
 			echo "$$svc: not running"; \
 		fi; \
 	done
-
-run-playbook:
-	$(ANSIBLE) -i $(INVENTORY) $(PLAYBOOK) \
-		-e cmdb_url=$(CMDB_URL) \
-		-e ipam_url=$(IPAM_URL) \
-		$(ANSIBLE_ARGS)
