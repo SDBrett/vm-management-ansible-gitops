@@ -5,48 +5,53 @@
     path: "{{ repo_dir }}/{{ vm.vm_name }}.yaml"
   register: manifest_stat
 
-- name: Read {{ vm.vm_name }} manifest
+- name: Configure VM {{ vm.vm_name }}
   block:
-    - name: Set vm_manifest fact
-      ansible.builtin.set_fact:
-          vm_manifest: "{{ lookup('file', repo_dir + '/' + vm.vm_name + '.yaml') | from_yaml }}"
-    - name: Set cmdb_uuid fact
-      ansible.builtin.set_fact:
-        cmdb_uuid: "{{ vm_manifest.metadata.annotations.cmdb }}"
-      when: vm_manifest.metadata.annotations.cmdb is defined
-  when: manifest_stat.stat.exists
+    - name: Read {{ vm.vm_name }} manifest
+      block:
+        - name: Set vm_manifest fact
+          ansible.builtin.set_fact:
+              vm_manifest: "{{ lookup('file', repo_dir + '/' + vm.vm_name + '.yaml') | from_yaml }}"
+        - name: Set cmdb_uuid fact
+          ansible.builtin.set_fact:
+            cmdb_uuid: "{{ vm_manifest.metadata.annotations.cmdb }}"
+          when: vm_manifest.metadata.annotations.cmdb is defined
+      when: manifest_stat.stat.exists
 
-- name: Create CMDB Record for {{ vm.vm_name }}
-  block:
-    - name: Create CMDB Record
-      ansible.builtin.uri:
-        url: "{{ cmdb_url }}/vm/create"
-        method: POST
-        status_code: 201
-      register: new_cmdb_record_response
-    - name: Set cmdb_uuid fact
-      ansible.builtin.set_fact:
-        cmdb_uuid: "{{ new_cmdb_record_response.json.resource_UUID }}"
-  when: vm_manifest.metadata.annotations.cmdb is undefined or not manifest_stat.stat.exists and vm.state | default('present') == 'present'
+    - name: Create CMDB Record for {{ vm.vm_name }}
+      block:
+        - name: Create CMDB Record
+          ansible.builtin.uri:
+            url: "{{ cmdb_url }}/vm/create"
+            method: POST
+            status_code: 201
+          register: new_cmdb_record_response
+        - name: Set cmdb_uuid fact
+          ansible.builtin.set_fact:
+            cmdb_uuid: "{{ new_cmdb_record_response.json.resource_UUID }}"
+      when: vm_manifest.metadata.annotations.cmdb is undefined or not manifest_stat.stat.exists and vm.state | default('present') == 'present'
 
-- name: Generate {{ vm.vm_name }} manifest
-  ansible.builtin.template:
-    src: templates/virtualmachine.yaml.j2
-    dest: "{{ repo_dir }}/{{ vm.vm_name }}.yaml"
-  vars:
-    vm: "{{ vm }}"
-    vm_namespace: "{{ vm_vars.namespace }}"
+    - name: Generate {{ vm.vm_name }} manifest
+      ansible.builtin.template:
+        src: templates/virtualmachine.yaml.j2
+        dest: "{{ repo_dir }}/{{ vm.vm_name }}.yaml"
+      vars:
+        vm: "{{ vm }}"
+        vm_namespace: "{{ vm_vars.namespace }}"
   when: vm.state | default('present') == 'present'
 
-- name: Delete CMDB Record for {{ vm.vm_name }}
-  ansible.builtin.uri:
-    url: "{{ cmdb_url }}/vm/{{ cmdb_uuid }}"
-    method: DELETE
-    status_code: 200
-  when: vm.state | default('present') == 'absent' and cmdb_uuid is defined
+- name: Remove and cleanup old VM
+  block:
+    - name: Delete CMDB Record for {{ vm.vm_name }}
+      ansible.builtin.uri:
+        url: "{{ cmdb_url }}/vm/{{ cmdb_uuid }}"
+        method: DELETE
+        status_code: 200
+      when: cmdb_uuid is defined
 
-- name: Delete {{ vm.vm_name }} manifest
-  ansible.builtin.file:
-    path: "{{ repo_dir }}/{{ vm.vm_name }}.yaml"
-    state: absent
-  when: vm.state | default('present') == 'absent'
+    - name: Delete {{ vm.vm_name }} manifest
+      ansible.builtin.file:
+        path: "{{ repo_dir }}/{{ vm.vm_name }}.yaml"
+        state: absent
+      when: manifest_stat.stat.exists
+  when: vm.state | default('present') == 'absent' 

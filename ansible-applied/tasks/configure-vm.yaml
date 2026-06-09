@@ -78,7 +78,8 @@
       ansible.builtin.file:
         path: "{{ repo_dir }}/{{ vm.vm_name }}.yaml"
         state: absent
-
+      when: manifest_stat.stat.exists
+      
     - name: Delete VM from OpenShift
       redhat.openshift_virtualization.kubevirt_vm:
         name: "{{ vm.vm_name }}"
