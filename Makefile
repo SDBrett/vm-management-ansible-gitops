@@ -1,5 +1,5 @@
 PYTHON ?= python3
-ROOT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
+ROOT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 HACK_DIR := $(ROOT_DIR)/hack
 RUN_DIR := $(ROOT_DIR)/.run
 

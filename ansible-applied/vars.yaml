@@ -4,7 +4,7 @@ virtualMachines:
     runStrategy: RerunOnFailure
     state: absent
     storage_size: 30Gi
-    memory_size: 2Gi
+    memory_size: 3Gi
     cpu_cores: 2
     cpu_sockets: 1
     cpu_threads: 1
@@ -19,11 +19,11 @@ virtualMachines:
     cloud_init_password: redhat
 
   - vm_name: test-vm2
-    runStrategy: RerunOnFailure
     reboot_on_change: true
+    runStrategy: RerunOnFailure
     state: present
     storage_size: 30Gi
-    memory_size: 2Gi
+    memory_size: 3Gi
     cpu_cores: 2
     cpu_sockets: 1
     cpu_threads: 1
