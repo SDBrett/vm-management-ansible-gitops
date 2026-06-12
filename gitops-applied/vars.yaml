@@ -1,8 +1,8 @@
 namespace: vm-test
 virtualMachines:
   - vm_name: my-test-vm
-    runStrategy: RerunOnFailure
-    state: absent
+    runStrategy: Halted
+    state: present
     storage_size: 30Gi
     memory_size: 3Gi
     cpu_cores: 2
@@ -19,8 +19,6 @@ virtualMachines:
     cloud_init_password: redhat
 
   - vm_name: test-vm2
-    reboot_on_change: true
-    runStrategy: RerunOnFailure
     state: present
     storage_size: 30Gi
     memory_size: 3Gi

@@ -17,7 +17,7 @@ metadata:
     vm.kubevirt.io/template.revision: "{{ vm.os_images_template_revision }}"
     vm.kubevirt.io/template.version: {{ vm.os_images_template_version }}
 spec:
-  runStrategy: {{ vm.runStrategy | default(RerunOnFailure) }}
+  runStrategy: {{ vm.runStrategy | default("RerunOnFailure") }}
   dataVolumeTemplates:
     - metadata:
         name: {{ vm.vm_name }}

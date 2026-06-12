@@ -36,6 +36,24 @@
       register: git_status
       changed_when: false
 
+    - name: Find manifest files
+      ansible.builtin.find:
+        paths: "{{ repo_dir }}"
+        patterns: '*.yaml'
+        excludes: 
+          - 'kustomization.yaml'
+          - 'vars.yaml'
+      register: found_files
+
+    - name: Store paths in a simple flat list
+      ansible.builtin.set_fact:
+        files_list: "{{ found_files.files | map(attribute='path') | map('basename') | list }}"
+
+    - name: Update Kustomization file
+      ansible.builtin.template:
+        src: templates/kustomization.yaml.j2
+        dest: "{{ repo_dir }}/kustomization.yaml"
+
     - name: Commit commit and push changes
       ansible.builtin.include_tasks: 
         file: tasks/git-tasks.yaml

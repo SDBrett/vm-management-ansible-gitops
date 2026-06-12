@@ -21,7 +21,7 @@
 
 - name: Commit and push changes
   block:
-    - name: Commit changes
+    - name: Stage changes
       ansible.builtin.command:
         cmd: "git add ."
         chdir: "{{ repo_dir }}"
