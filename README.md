@@ -13,11 +13,11 @@ Both patterns use GitOps as the single source of truth and render manifests base
 
 ## Services
 
-The `hack` directory contains two python scripts which simulate iteractions with external systems. These scripts are added to enable testing different scenarioes such as:
+The `hack` directory contains two python scripts which simulate interactions with external systems. These scripts are added to enable testing different scenarios such as:
 
 * Add data from external system to a manifest
 * Clean up on failure and removal
-* Detect if data is missing from manifests already stored in Git.
+* Detects if data is missing from manifests already stored in Git.
 
 The CMDB service is used to simulate adding the VM to a CMDB service and removing the entry when the VM is removed.
 

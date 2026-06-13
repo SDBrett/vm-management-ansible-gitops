@@ -1,6 +1,6 @@
 The GitOps applied pattern uses Ansible to render Kubernetes manifests; applies them to a cluster and then pushes the updated manifests to a git repo.
 
-The goal of this pattern is to keep git as the source of truth while leveraging Ansible to perform additional tasks such as rebooting a VM after hardware configurtion changes.
+The goal of this pattern is to keep git as the source of truth while leveraging Ansible to perform additional tasks such as rebooting a VM after hardware configuration changes.
 
 Key points and considerations about this approach:
 
