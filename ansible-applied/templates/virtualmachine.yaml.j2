@@ -6,18 +6,21 @@ metadata:
   namespace: {{ vm_namespace }}
   annotations:
     cmdb: "{{ cmdb_uuid }}"
-    vm.kubevirt.io/flavor: {{ vm.os_images_flavor }}
-    vm.kubevirt.io/os: {{ vm.os_images_template }}
-    vm.kubevirt.io/workload: {{ vm.os_images_workload }}
   labels:
     app: {{ vm.vm_name }}
     kubevirt.io/dynamic-credentials-support: "true"
-    vm.kubevirt.io/template: {{ vm.os_images_template }}-{{ vm.os_images_workload }}-{{ vm.os_images_flavor }}
-    vm.kubevirt.io/template.namespace: {{ vm.os_images_template_namespace }}
-    vm.kubevirt.io/template.revision: "{{ vm.os_images_template_revision }}"
-    vm.kubevirt.io/template.version: {{ vm.os_images_template_version }}
 spec:
   runStrategy: {{ vm.runStrategy | default(RerunOnFailure) }}
+{% if vm.instance_type is defined %}
+  instancetype:
+    name: {{ vm.instance_type.name }}
+    kind: {{ vm.instance_type.kind | default(virtualMachineClusterInstancetype) }}
+{% endif %}
+{% if vm.preference is defined %}
+  preference:
+    name: {{ vm.preference.name }}
+    kind: {{ vm.preference.kind | default(virtualMachinePreference) }}
+{% endif %}
   dataVolumeTemplates:
     - metadata:
         name: {{ vm.vm_name }}
@@ -32,23 +35,19 @@ spec:
               storage: {{ vm.storage_size }}
   template:
     metadata:
-      annotations:
-        vm.kubevirt.io/flavor: {{ vm.os_images_flavor }}
-        vm.kubevirt.io/os: {{ vm.os_images_template }}
-        vm.kubevirt.io/workload: {{ vm.os_images_workload }}
       labels:
         app: {{ vm.vm_name }}
         kubevirt.io/dynamic-credentials-support: "true"
-        vm.kubevirt.io/template: {{ vm.os_images_template }}-{{ vm.os_images_workload }}-{{ vm.os_images_flavor }}
-        vm.kubevirt.io/template.namespace: {{ vm.os_images_template_namespace }}
-        vm.kubevirt.io/template.revision: "{{ vm.os_images_template_revision }}"
-        vm.kubevirt.io/template.version: {{ vm.os_images_template_version }}
     spec:
       domain:
+{% if vm.instance_type is not defined %}
         cpu:
           cores: {{ vm.cpu_cores }}
           sockets: {{ vm.cpu_sockets }}
           threads: {{ vm.cpu_threads }}
+        memory:
+          guest: {{ vm.memory_size }}
+{% endif %}
         devices:
           disks:
             - disk:
@@ -61,8 +60,6 @@ spec:
             - masquerade: {}
               model: virtio
               name: {{ vm.network_interface1_name }}
-        memory:
-          guest: {{ vm.memory_size }}
       networks:
         - name: {{ vm.network_interface1_name }}
           pod: {}

@@ -10,11 +10,6 @@ virtualMachines:
     cpu_threads: 1
     os_images_template: fedora
     os_images_project: openshift-virtualization-os-images
-    os_images_flavor: small
-    os_images_workload: server
-    os_images_template_namespace: openshift
-    os_images_template_revision: "1"
-    os_images_template_version: v1
     network_interface1_name: default
     cloud_init_password: redhat
 
@@ -29,10 +24,22 @@ virtualMachines:
     cpu_threads: 1
     os_images_template: fedora
     os_images_project: openshift-virtualization-os-images
-    os_images_flavor: small
-    os_images_workload: server
-    os_images_template_namespace: openshift
-    os_images_template_revision: "1"
-    os_images_template_version: v1
+    network_interface1_name: default
+    cloud_init_password: redhat
+
+  - vm_name: test-vm3
+    reboot_on_change: true
+    runStrategy: RerunOnFailure
+    instance_type:
+      name: u1.small
+      kind: virtualMachineClusterInstancetype
+    state: present
+    storage_size: 30Gi
+    memory_size: 3Gi
+    cpu_cores: 2
+    cpu_sockets: 1
+    cpu_threads: 1
+    os_images_template: fedora
+    os_images_project: openshift-virtualization-os-images
     network_interface1_name: default
     cloud_init_password: redhat

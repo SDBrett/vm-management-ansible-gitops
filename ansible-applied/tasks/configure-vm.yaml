@@ -59,7 +59,8 @@
       ansible.builtin.set_fact:
         reboot_required: "true"
       when: apply_result.result.status.conditions | selectattr('type', 'equalto','RestartRequired') | list | length > 0
-  when: vm.state | default('present') == 'present'
+  when: vm.state  == 'present' | default('present')
+
 - name: reboot if required
   ansible.builtin.command:
     cmd: "virtctl -n {{ vm_vars.namespace }} restart {{ vm.vm_name }}"
