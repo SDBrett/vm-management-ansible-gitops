@@ -10,7 +10,7 @@ metadata:
     app: {{ vm.vm_name }}
     kubevirt.io/dynamic-credentials-support: "true"
 spec:
-  runStrategy: {{ vm.runStrategy | default(RerunOnFailure) }}
+  runStrategy: {{ runStrategy }}
 {% if vm.instance_type is defined %}
   instancetype:
     name: {{ vm.instance_type.name }}

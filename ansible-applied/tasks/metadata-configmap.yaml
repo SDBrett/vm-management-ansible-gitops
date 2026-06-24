@@ -1,0 +1,29 @@
+- name: update metadata configmap
+  block:
+    - name: Create Metadata ConfigMap
+      ansible.builtin.template:
+        src: templates/metadata-configmap.yaml.j2
+        dest: "{{ repo_dir }}/{{ vm.vm_name }}-metadata.yaml"
+
+    - name: Apply Metadata ConfigMap
+      redhat.openshift.k8s:
+        state: present
+        src: "{{ repo_dir }}/{{ vm.vm_name }}-metadata.yaml"
+  when: vm.state == 'present' | default('present')
+
+- name: delete metadata configmap
+  block:
+
+    - name: delete if configmap exists
+      redhat.openshift.k8s:
+        state: absent
+        kind: ConfigMap
+        name: "{{ vm.vm_name }}-metadata"
+        namespace: "{{ vm_vars.namespace }}"
+
+    - name: delete if configmap
+      ansible.builtin.file:
+        path: "{{ repo_dir }}/{{ vm.vm_name }}-metadata.yaml"
+        state: absent
+
+  when: vm.state == 'absent' | default('absent')
