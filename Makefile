@@ -144,9 +144,9 @@ stop-gitea:
 		echo "Gitea is not running (container $(GITEA_CONTAINER) exists but is stopped)"; \
 	fi
 
-start-services: start-cmdb start-ipam
+start-services: start-cmdb start-ipam start-gitea
 
-stop-services: stop-cmdb stop-ipam
+stop-services: stop-cmdb stop-ipam stop-gitea
 
 status:
 	@if $(CONTAINER_TOOL) container exists $(GITEA_CONTAINER) 2>/dev/null; then \
