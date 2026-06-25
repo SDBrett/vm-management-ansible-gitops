@@ -49,7 +49,7 @@ class CMDBHandler(BaseHTTPRequestHandler):
     def do_DELETE(self):
         self._read_request_body()
 
-        match = re.fullmatch(r"/vm/(\d{4})", self.path.rstrip("/") or "/")
+        match = re.fullmatch(r"/vm/([^/]+)", self.path.rstrip("/") or "/")
         if not match:
             self.send_error(404, "Not Found")
             return
