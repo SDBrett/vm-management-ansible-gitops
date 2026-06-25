@@ -20,6 +20,7 @@
     - name: Set vm_manifest fact
       ansible.builtin.set_fact:
           vm_manifest: "{{ lookup('file', repo_dir + '/' + vm.vm_name + '.yaml') | from_yaml }}"
+
     - name: Set cmdb_uuid fact
       ansible.builtin.set_fact:
         cmdb_uuid: "{{ vm_manifest.metadata.annotations.cmdb }}"
@@ -48,7 +49,13 @@
       vars:
         vm: "{{ vm }}"
         vm_namespace: "{{ vm_vars.namespace }}"
-        runStrategy:  "{{ vm_exists | ternary((vm.runStrategy | default('RerunOnFailure')), 'Halted') }}"
+        runStrategy:  "{{ vm.runStrategy | default('RerunOnFailure') }}"
+
+    - name: Configure Metadata ConfigMap for {{ vm.vm_name }}
+      ansible.builtin.include_tasks:
+        file: tasks/metadata-configmap.yaml
+      vars:
+        vm_namespace: "{{ vm_vars.namespace }}"
 
     - name: Apply {{ vm.vm_name }} manifest
       redhat.openshift.k8s:
@@ -56,27 +63,11 @@
         src: "{{ repo_dir }}/{{ vm.vm_name }}.yaml"
       register: apply_result
 
-    - name: debug apply_result
-      ansible.builtin.debug:
-        msg: "{{ apply_result.result.metadata.uid }}"
-
-    - name: Configure Metadata ConfigMap for {{ vm.vm_name }}
-      ansible.builtin.include_tasks:
-        file: tasks/metadata-configmap.yaml
-      vars:
-        vm_namespace: "{{ vm_vars.namespace }}"
-        cmdb_uuid: "{{ apply_result.result.metadata.annotations.cmdb }}"
-
-  #   - name: Check if reboot is required
-  #     ansible.builtin.set_fact:
-  #       reboot_required: "true"
-  #     when: apply_result.result.status.conditions | selectattr('type', 'equalto','RestartRequired') | list | length > 0
+    - name: Check if reboot is required
+      ansible.builtin.set_fact:
+        reboot_required: "true"
+      when: apply_result.result.status is defined and apply_result.result.status.conditions is defined and apply_result.result.status.conditions | selectattr('type', 'equalto','RestartRequired') | list | length > 0
   when: vm.state == 'present' | default('present')
-
-# - name: reboot if required
-#   ansible.builtin.command:
-#     cmd: "virtctl -n {{ vm_vars.namespace }} restart {{ vm.vm_name }}"
-#   when: reboot_required is defined and reboot_on_change is defined and reboot_on_change == true
 
 - name: Remove and cleanup old VM
   block:
@@ -91,12 +82,18 @@
       ansible.builtin.file:
         path: "{{ repo_dir }}/{{ vm.vm_name }}.yaml"
         state: absent
-      when: manifest_stat.stat.exists
       
     - name: Delete VM from OpenShift
       redhat.openshift_virtualization.kubevirt_vm:
         name: "{{ vm.vm_name }}"
         namespace: "{{ vm_vars.namespace }}"
         state: absent
-      when: vm_exists
+
+      # Delete metadata last to make sure metadata needed for cleanup tasks is available for other tasks or if cleanup fails.
+    - name: Delete Metadata ConfigMap for {{ vm.vm_name }}
+      ansible.builtin.include_tasks:
+        file: tasks/metadata-configmap.yaml
+      vars:
+        vm_namespace: "{{ vm_vars.namespace }}"
+
   when: vm.state | default('present') == 'absent'
