@@ -1,5 +1,4 @@
 ---
-
 - name: Check if existing manifest exists for {{ vm.vm_name }}
   ansible.builtin.stat:
     path: "{{ repo_dir }}/{{ vm.vm_name }}.yaml"
@@ -12,6 +11,7 @@
         - name: Set vm_manifest fact
           ansible.builtin.set_fact:
               vm_manifest: "{{ lookup('file', repo_dir + '/' + vm.vm_name + '.yaml') | from_yaml }}"
+
         - name: Set cmdb_uuid fact
           ansible.builtin.set_fact:
             cmdb_uuid: "{{ vm_manifest.metadata.annotations.cmdb }}"
@@ -38,6 +38,13 @@
       vars:
         vm: "{{ vm }}"
         vm_namespace: "{{ vm_vars.namespace }}"
+
+    - name: Configure Metadata ConfigMap for {{ vm.vm_name }}
+      ansible.builtin.include_tasks:
+        file: tasks/metadata-configmap.yaml
+      vars:
+        vm_namespace: "{{ vm_vars.namespace }}"
+
   when: vm.state | default('present') == 'present'
 
 - name: Remove and cleanup old VM
@@ -53,5 +60,11 @@
       ansible.builtin.file:
         path: "{{ repo_dir }}/{{ vm.vm_name }}.yaml"
         state: absent
-      when: manifest_stat.stat.exists
+
+    - name: Delete Metadata ConfigMap for {{ vm.vm_name }}
+      ansible.builtin.include_tasks:
+        file: tasks/metadata-configmap.yaml
+      vars:
+        vm_namespace: "{{ vm_vars.namespace }}"
+
   when: vm.state | default('present') == 'absent' 
