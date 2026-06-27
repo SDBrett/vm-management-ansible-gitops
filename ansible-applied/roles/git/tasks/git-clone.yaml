@@ -1,0 +1,21 @@
+---
+- name: debug repo directory
+  ansible.builtin.debug:
+    msg: "Repo directory: {{ repo_dir }}"
+
+- name: Verify if repo directory exists
+  ansible.builtin.stat:
+    path: "{{ repo_dir }}"
+  register: dir_status
+
+- name: Clone git repository
+  ansible.builtin.command:
+    cmd: "git clone {{ repo_url }} {{ repo_dir }}"
+  changed_when: false
+  when: not dir_status.stat.exists
+
+- name: Pull git repository
+  ansible.builtin.command:
+    cmd: "git pull"
+    chdir: "{{ repo_dir }}"
+  when: dir_status.stat.exists

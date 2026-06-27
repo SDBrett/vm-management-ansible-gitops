@@ -1,0 +1,15 @@
+---
+- name: Stage changes
+  ansible.builtin.command:
+    cmd: "git add ."
+    chdir: "{{ repo_dir }}"
+
+- name: Commit changes
+  ansible.builtin.command:
+    cmd: "git commit -am 'Updated VM config'"
+    chdir: "{{ repo_dir }}"
+
+- name: Push changes
+  ansible.builtin.command:
+    cmd: "git push"
+    chdir: "{{ repo_dir }}"

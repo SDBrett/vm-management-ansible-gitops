@@ -1,0 +1,21 @@
+# - name: Pull git repository
+#   block:
+#     - name: Verify if the directory exists
+#       ansible.builtin.stat:
+#         path: "{{ repo_dir }}"
+#       register: dir_status
+
+#     ## TODO add handling for empty repo
+#     - name: Clone git repository
+#       ansible.builtin.command:
+#         cmd: "git clone {{ repo_url }} {{ repo_dir }}"
+#       changed_when: false
+#       when: not dir_status.stat.exists
+
+#     - name: Pull git repository
+#       ansible.builtin.command:
+#         cmd: "git pull"
+#         chdir: "{{ repo_dir }}"
+#       when: dir_status.stat.exists
+#   when: task_name == 'git-pull'
+
