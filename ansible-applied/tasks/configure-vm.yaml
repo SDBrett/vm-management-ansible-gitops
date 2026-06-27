@@ -1,4 +1,5 @@
 ---
+# Initialize vm_info fact to ensure that facts from other loop iterations are not used.
 - name: Initialize vm_info fact
   ansible.builtin.set_fact:
     vm_info: { 'vm_manifest_path': '{{ repo_dir }}/{{ vm.vm_name }}.yaml', 
