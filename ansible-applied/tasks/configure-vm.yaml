@@ -67,7 +67,7 @@
       ansible.builtin.set_fact:
         reboot_required: "true"
       when: apply_result.result.status is defined and apply_result.result.status.conditions is defined and apply_result.result.status.conditions | selectattr('type', 'equalto','RestartRequired') | list | length > 0
-  when: vm.state == 'present' | default('present')
+  when: vm.state is defined and vm.state == 'present'
 
 - name: Remove and cleanup old VM
   block:
