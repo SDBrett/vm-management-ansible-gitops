@@ -1,99 +1,94 @@
 ---
+- name: Initialize vm_info fact
+  ansible.builtin.set_fact:
+    vm_info: { 'vm_manifest_path': '{{ repo_dir }}/{{ vm.vm_name }}.yaml', 
+    'configmap_path': '{{ repo_dir }}/{{ vm.vm_name }}-metadata.yaml' }
 
 - name: get current VM state
   redhat.openshift_virtualization.kubevirt_vm_info:
     name: "{{ vm.vm_name }}"
     namespace: "{{ vm_vars.namespace }}"
-  register: vm_info
+  register: live_manifest
 
 - name: set vm_exists fact
   ansible.builtin.set_fact:
-    vm_exists: "{{ vm_info.resources | length > 0 | bool }}"
+    vm_info: "{{ vm_info | combine( {'vm_exists': live_manifest.resources | length > 0 | bool} ) }}"
 
 - name: Check if existing manifest exists for {{ vm.vm_name }}
   ansible.builtin.stat:
-    path: "{{ repo_dir }}/{{ vm.vm_name }}.yaml"
+    path: "{{ vm_info.vm_manifest_path }}"
   register: manifest_stat
 
 - name: Read {{ vm.vm_name }} manifest
   block:
     - name: Set vm_manifest fact
       ansible.builtin.set_fact:
-          vm_manifest: "{{ lookup('file', repo_dir + '/' + vm.vm_name + '.yaml') | from_yaml }}"
+          vm_manifest: "{{ lookup('file', vm_info.vm_manifest_path) | from_yaml }}"
 
     - name: Set cmdb_uuid fact
       ansible.builtin.set_fact:
-        cmdb_uuid: "{{ vm_manifest.metadata.annotations.cmdb }}"
+        vm_info: "{{ vm_info | combine( {'cmdb_uuid': vm_manifest.metadata.annotations.cmdb} ) }}"
       when: vm_manifest.metadata.annotations.cmdb is defined
   when: manifest_stat.stat.exists
+
+- name: debug vm_info
+  ansible.builtin.debug:
+    msg: "{{ vm_info }}"
 
 - name: Configure VM {{ vm.vm_name }}
   block:
     - name: Create CMDB Record for {{ vm.vm_name }}
-      block:
-        - name: Create CMDB Record
-          ansible.builtin.uri:
-            url: "{{ cmdb_url }}/vm/create"
-            method: POST
-            status_code: 201
-          register: new_cmdb_record_response
-        - name: Set cmdb_uuid fact
-          ansible.builtin.set_fact:
-            cmdb_uuid: "{{ new_cmdb_record_response.json.resource_UUID }}"
-      when: vm_manifest.metadata.annotations.cmdb is undefined or not manifest_stat.stat.exists
+      ansible.builtin.include_role:
+        name: cmbd
+        tasks_from: create-cmdb-record.yaml
+      when: vm_info.cmdb_uuid is undefined
 
+    - name: Add cmdb_uuid to vm_info fact
+      ansible.builtin.set_fact:
+        vm_info: "{{ vm_info | combine( {'cmdb_uuid': cmdb_uuid} ) }}"
+      when: vm_info.cmdb_uuid is undefined
+   
     - name: Generate {{ vm.vm_name }} manifest
       ansible.builtin.template:
         src: templates/virtualmachine.yaml.j2
-        dest: "{{ repo_dir }}/{{ vm.vm_name }}.yaml"
+        dest: "{{ vm_info.vm_manifest_path }}"
       vars:
         vm: "{{ vm }}"
         vm_namespace: "{{ vm_vars.namespace }}"
         runStrategy:  "{{ vm.runStrategy | default('RerunOnFailure') }}"
+        cmdb_uuid: "{{ vm_info.cmdb_uuid }}"
+
+    - name: Apply {{ vm.vm_name }} manifest
+      redhat.openshift.k8s:
+        state: present
+        src: "{{ vm_info.vm_manifest_path }}"
+      register: apply_result
 
     - name: Configure Metadata ConfigMap for {{ vm.vm_name }}
       ansible.builtin.include_tasks:
         file: tasks/metadata-configmap.yaml
       vars:
+        configmap_path: "{{ vm_info.configmap_path }}"
         vm_namespace: "{{ vm_vars.namespace }}"
-
-    - name: Apply {{ vm.vm_name }} manifest
-      redhat.openshift.k8s:
-        state: present
-        src: "{{ repo_dir }}/{{ vm.vm_name }}.yaml"
-      register: apply_result
+        manifest_state: "present"
+        cmdb_uuid: "{{ vm_info.cmdb_uuid }}"
 
     - name: Check if reboot is required
       ansible.builtin.set_fact:
         reboot_required: "true"
       when: apply_result.result.status is defined and apply_result.result.status.conditions is defined and apply_result.result.status.conditions | selectattr('type', 'equalto','RestartRequired') | list | length > 0
   when: vm.state is defined and vm.state == 'present'
+  rescue:
+    - name: Create new VM recovery
+      ansible.builtin.include_tasks:
+        file: tasks/remove-vm.yaml
+      when: not vm_info.vm_exists
 
 - name: Remove and cleanup old VM
-  block:
-    - name: Delete CMDB Record for {{ vm.vm_name }}
-      ansible.builtin.uri:
-        url: "{{ cmdb_url }}/vm/{{ cmdb_uuid }}"
-        method: DELETE
-        status_code: 200
-      when: cmdb_uuid is defined
-
-    - name: Delete {{ vm.vm_name }} manifest
-      ansible.builtin.file:
-        path: "{{ repo_dir }}/{{ vm.vm_name }}.yaml"
-        state: absent
-      
-    - name: Delete VM from OpenShift
-      redhat.openshift_virtualization.kubevirt_vm:
-        name: "{{ vm.vm_name }}"
-        namespace: "{{ vm_vars.namespace }}"
-        state: absent
-
-      # Delete metadata last to make sure metadata needed for cleanup tasks is available for other tasks or if cleanup fails.
-    - name: Delete Metadata ConfigMap for {{ vm.vm_name }}
-      ansible.builtin.include_tasks:
-        file: tasks/metadata-configmap.yaml
-      vars:
-        vm_namespace: "{{ vm_vars.namespace }}"
-
-  when: vm.state | default('present') == 'absent'
+  ansible.builtin.include_tasks:
+    file: tasks/remove-vm.yaml
+  vars:
+    vm_manifest_path: "{{ vm_info.vm_manifest_path }}"
+    configmap_path: "{{ vm_info.configmap_path }}"
+    cmdb_uuid: "{{ vm_info.cmdb_uuid }}"
+  when: vm.state is defined and vm.state == 'absent'

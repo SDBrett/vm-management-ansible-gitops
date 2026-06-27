@@ -1,0 +1,25 @@
+---
+- name: Delete CMDB Record for {{ vm.vm_name }}
+  ansible.builtin.include_role:
+    name: cmbd
+    tasks_from: delete-cmdb-record.yaml
+  when: cmdb_uuid is defined
+
+- name: Delete {{ vm.vm_name }} manifest
+  ansible.builtin.file:
+    path: "{{ vm_manifest_path }}"
+    state: absent
+  
+- name: Delete VM from OpenShift
+  redhat.openshift_virtualization.kubevirt_vm:
+    name: "{{ vm.vm_name }}"
+    namespace: "{{ vm_vars.namespace }}"
+    state: absent
+
+  # Delete metadata last to make sure metadata needed for cleanup tasks is available for other tasks or if cleanup fails.
+- name: Delete Metadata ConfigMap for {{ vm.vm_name }}
+  ansible.builtin.include_tasks:
+    file: tasks/metadata-configmap.yaml
+  vars:
+    vm_namespace: "{{ vm_vars.namespace }}"
+    manifest_state: "absent"

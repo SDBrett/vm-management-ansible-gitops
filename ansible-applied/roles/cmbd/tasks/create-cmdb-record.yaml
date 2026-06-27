@@ -1,0 +1,15 @@
+---
+- name: Create CMDB Record
+  ansible.builtin.uri:
+    url: "{{ cmdb_url }}/vm/create"
+    method: POST
+    status_code: 201
+  register: new_cmdb_record_response
+
+- name: Set cmdb_uuid fact
+  ansible.builtin.set_fact:
+    cmdb_uuid: "{{ new_cmdb_record_response.json.resource_UUID }}"
+
+- name: debug cmdb_uuid
+  ansible.builtin.debug:
+    msg: "{{ cmdb_uuid }}"

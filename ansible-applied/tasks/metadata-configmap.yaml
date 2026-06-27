@@ -1,29 +1,30 @@
-- name: update metadata configmap
+---
+- name: Render and apply Metadata ConfigMap
   block:
-    - name: Create Metadata ConfigMap
+    - name: Render Metadata ConfigMap manifest
       ansible.builtin.template:
         src: templates/metadata-configmap.yaml.j2
-        dest: "{{ repo_dir }}/{{ vm.vm_name }}-metadata.yaml"
+        dest: "{{ configmap_path }}"
+      vars:
+        cmdb_uuid: "{{ cmdb_uuid }}"
 
-    - name: Apply Metadata ConfigMap
+    - name: Update Metadata ConfigMap resource
       redhat.openshift.k8s:
-        state: present
-        src: "{{ repo_dir }}/{{ vm.vm_name }}-metadata.yaml"
-  when: vm.state == 'present' | default('present')
+        state: "{{ manifest_state }}"
+        src: "{{ configmap_path }}"
+  when: manifest_state == "present"
 
-- name: delete metadata configmap
+- name: Delete Metadata ConfigMap
   block:
-
-    - name: delete configmap
+    - name: Delete Metadata ConfigMap resource
       redhat.openshift.k8s:
         state: absent
         kind: ConfigMap
         name: "{{ vm.vm_name }}-metadata"
         namespace: "{{ vm_vars.namespace }}"
 
-    - name: delete if configmap
+    - name: Delete Metadata ConfigMap manifest
       ansible.builtin.file:
-        path: "{{ repo_dir }}/{{ vm.vm_name }}-metadata.yaml"
+        path: "{{ configmap_path }}"
         state: absent
-
-  when: vm.state == 'absent' | default('absent')
+  when: manifest_state == "absent"
